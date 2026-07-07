@@ -16,4 +16,18 @@ clean-targets:
   - "dbt_packages"
 
 models:
-  +materialized: view
+  sdg_dbt_vault:
+    # Capa de Staging: Vistas para limpiar y estandarizar
+    staging:
+      +materialized: view
+      +schema: staging
+    
+    # Capa de Vault: Tablas persistentes (Hubs, Links, Satélites)
+    vault:
+      +materialized: table
+      +schema: vault
+      
+    # Capa de Marts: Tablas o vistas según necesidades de consumo
+    marts:
+      +materialized: table
+      +schema: marts

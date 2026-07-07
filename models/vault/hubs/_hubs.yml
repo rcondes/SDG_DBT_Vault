@@ -1,0 +1,62 @@
+version: 2
+
+models:
+  - name: hub_customer
+    description: "Hub de clientes. Contiene solo el ID de negocio del cliente."
+    columns:
+      - name: customer_hk
+        description: "Hash único MD5 (Business Key) del cliente."
+        data_tests: [not_null, unique]
+      - name: customer_id
+        description: "Clave de negocio original del cliente."
+        data_tests: [not_null]
+
+  - name: hub_orders
+    description: "Hub de pedidos. Contiene solo el ID de negocio del pedido."
+    columns:
+      - name: order_hk
+        description: "Hash único MD5 (Business Key) del pedido."
+        data_tests: [not_null, unique]
+      - name: order_id
+        description: "Clave de negocio original del pedido."
+        data_tests: [not_null]
+
+  - name: hub_part
+    description: "Hub de piezas. Contiene solo el ID de negocio de la pieza."
+    columns:
+      - name: part_hk
+        description: "Hash único MD5 (Business Key) de la pieza."
+        data_tests: [not_null, unique]
+      - name: part_id
+        description: "Clave de negocio original de la pieza."
+        data_tests: [not_null]
+
+  - name: hub_supplier
+    description: "Hub de proveedores. Contiene solo el ID de negocio del proveedor."
+    columns:
+      - name: supplier_hk
+        description: "Hash único MD5 (Business Key) del proveedor."
+        data_tests: [not_null, unique]
+      - name: supplier_id
+        description: "Clave de negocio original del proveedor."
+        data_tests: [not_null]
+
+  - name: hub_nation
+    description: "Hub de naciones. Contiene solo el ID de negocio de la nación."
+    columns:
+      - name: nation_hk
+        description: "Hash único MD5 (Business Key) de la nación."
+        data_tests: [not_null, unique]
+      - name: nation_id
+        description: "Clave de negocio original de la nación."
+        data_tests: [not_null]
+
+  - name: hub_region
+    description: "Hub de regiones. Contiene solo el ID de negocio de la región."
+    columns:
+      - name: region_hk
+        description: "Hash único MD5 (Business Key) de la región."
+        data_tests: [not_null, unique]
+      - name: region_id
+        description: "Clave de negocio original de la región."
+        data_tests: [not_null]
