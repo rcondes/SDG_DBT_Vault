@@ -1,0 +1,20 @@
+version: 2
+
+models:
+  - name: hub_customer
+    description: "Hub central que contiene las identidades únicas de los clientes."
+    columns:
+      - name: customer_hk
+        description: "Clave Hash MD5 única para cada cliente."
+        data_tests:
+          - unique
+          - not_null
+
+  - name: hub_orders
+    description: "Hub central que contiene las identidades únicas de las órdenes de compra."
+    columns:
+      - name: order_hk
+        description: "Clave Hash MD5 única para cada orden."
+        data_tests:
+          - unique
+          - not_null

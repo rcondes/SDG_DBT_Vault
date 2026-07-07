@@ -8,12 +8,20 @@ sources:
     tables:
       - name: raw_customer
         description: "Datos maestros de clientes."
+        columns:
+          - name: c_custkey
+            data_tests:
+              - not_null
       - name: raw_lineitem
         description: "Detalle transaccional de las líneas de los pedidos."
       - name: raw_nation
         description: "Tabla maestra de naciones y países."
       - name: raw_orders
         description: "Cabeceras de las órdenes de compra."
+        columns:
+          - name: o_orderkey
+            data_tests:
+              - not_null
       - name: raw_part
         description: "Catálogo de piezas y componentes."
       - name: raw_partsupp
