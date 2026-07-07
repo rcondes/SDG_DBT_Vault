@@ -1,0 +1,24 @@
+version: 2
+
+sources:
+  - name: raw_source
+    database: SDG_DB
+    schema: RAW
+    description: "Capa de ingesta cruda de Snowflake con los datos históricos de los CSVs."
+    tables:
+      - name: raw_customer
+        description: "Datos maestros de clientes."
+      - name: raw_lineitem
+        description: "Detalle transaccional de las líneas de los pedidos."
+      - name: raw_nation
+        description: "Tabla maestra de naciones y países."
+      - name: raw_orders
+        description: "Cabeceras de las órdenes de compra."
+      - name: raw_part
+        description: "Catálogo de piezas y componentes."
+      - name: raw_partsupp
+        description: "Relación de componentes por proveedor y costos de suministro."
+      - name: raw_region
+        description: "Regiones geográficas de negocio."
+      - name: raw_supplier
+        description: "Datos maestros de proveedores."
