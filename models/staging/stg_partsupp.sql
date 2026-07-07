@@ -2,7 +2,7 @@
 with source_data as (select * from {{ source('raw_source', 'raw_partsupp') }}),
 final as (
     select
-        lower(md5(concat(cast(ps_partkey as string), cast(ps_suppkey as string)))) as partsupp_hk,
+        lower(md5(concat(cast(trim(ps_partkey) as varchar(100)), cast(ps_suppkey as string)))) as partsupp_hk,
         ps_partkey as part_id,
         ps_suppkey as supplier_id,
         ps_availqty as available_qty,

@@ -2,7 +2,7 @@
 with source_data as (select * from {{ source('raw_source', 'raw_nation') }}),
 final as (
     select
-        lower(md5(cast(n_nationkey as string))) as nation_hk,
+        lower(md5(cast(trim(n_nationkey) as varchar()))) as nation_hk,
         n_nationkey as nation_id,
         n_name as nation_name,
         n_regionkey as region_id,

@@ -2,7 +2,7 @@
 with source_data as (select * from {{ source('raw_source', 'raw_customer') }}),
 final as (
     select
-        lower(md5(cast(c_custkey as string))) as customer_hk,
+        lower(md5(cast(trim(c_custkey) as varchar(100)))) as customer_hk,
         c_custkey as customer_id,
         c_name as customer_name,
         c_address as address,

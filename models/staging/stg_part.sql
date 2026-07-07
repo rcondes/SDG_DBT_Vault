@@ -2,7 +2,7 @@
 with source_data as (select * from {{ source('raw_source', 'raw_part') }}),
 final as (
     select
-        lower(md5(cast(p_partkey as string))) as part_hk,
+        lower(md5(cast(trim(p_partkey) as varchar(100)))) as part_hk,
         p_partkey as part_id,
         p_name as name,
         p_mfgr as manufacturer,

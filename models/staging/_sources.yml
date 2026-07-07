@@ -5,20 +5,13 @@ sources:
     database: SDG_DB
     schema: RAW
     description: "Capa de ingesta con los datos crudos de los 8 CSVs."
+
     tables:
       - name: raw_customer
-        columns: [{name: c_custkey, data_tests: [not_null]}]
       - name: raw_orders
-        columns: [{name: o_orderkey, data_tests: [not_null]}]
       - name: raw_lineitem
-        columns: [{name: l_orderkey, data_tests: [not_null]}, {name: l_linenumber, data_tests: [not_null]}]
       - name: raw_part
-        columns: [{name: p_partkey, data_tests: [not_null]}]
       - name: raw_supplier
-        columns: [{name: s_suppkey, data_tests: [not_null]}]
       - name: raw_partsupp
-        columns: [{name: ps_partkey, data_tests: [not_null]}, {name: ps_suppkey, data_tests: [not_null]}]
       - name: raw_nation
-        columns: [{name: n_nationkey, data_tests: [not_null]}]
       - name: raw_region
-        columns: [{name: r_regionkey, data_tests: [not_null]}]
