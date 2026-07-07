@@ -4,29 +4,41 @@ sources:
   - name: raw_source
     database: SDG_DB
     schema: RAW
-    description: "Capa de ingesta cruda de Snowflake con los datos históricos de los CSVs."
+    description: "Capa de ingesta cruda."
     tables:
       - name: raw_customer
-        description: "Datos maestros de clientes."
         columns:
           - name: c_custkey
-            data_tests:
-              - not_null
-      - name: raw_lineitem
-        description: "Detalle transaccional de las líneas de los pedidos."
-      - name: raw_nation
-        description: "Tabla maestra de naciones y países."
+            data_tests: [not_null]
       - name: raw_orders
-        description: "Cabeceras de las órdenes de compra."
         columns:
           - name: o_orderkey
-            data_tests:
-              - not_null
+            data_tests: [not_null]
+      - name: raw_lineitem
+        columns:
+          - name: l_orderkey
+            data_tests: [not_null]
+          - name: l_linenumber
+            data_tests: [not_null]
       - name: raw_part
-        description: "Catálogo de piezas y componentes."
-      - name: raw_partsupp
-        description: "Relación de componentes por proveedor y costos de suministro."
-      - name: raw_region
-        description: "Regiones geográficas de negocio."
+        columns:
+          - name: p_partkey
+            data_tests: [not_null]
       - name: raw_supplier
-        description: "Datos maestros de proveedores."
+        columns:
+          - name: s_suppkey
+            data_tests: [not_null]
+      - name: raw_partsupp
+        columns:
+          - name: ps_partkey
+            data_tests: [not_null]
+          - name: ps_suppkey
+            data_tests: [not_null]
+      - name: raw_nation
+        columns:
+          - name: n_nationkey
+            data_tests: [not_null]
+      - name: raw_region
+        columns:
+          - name: r_regionkey
+            data_tests: [not_null]
