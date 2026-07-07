@@ -1,0 +1,11 @@
+{{ config(materialized='incremental') }}
+
+SELECT 
+    {{ dbt_utils.generate_surrogate_key(['p.part_hk', 's.supplier_hk']) }} AS link_part_supplier_hk,
+    p.part_hk,
+    s.supplier_hk,
+    CURRENT_TIMESTAMP() AS load_timestamp,
+    'RAW_PARTSUPP' AS record_source
+FROM {{ ref('stg_partsupp') }} ps
+JOIN {{ ref('hub_part') }} p ON ps.part_id = p.part_id
+JOIN {{ ref('hub_supplier') }} s ON ps.supplier_id = s.supplier_id

@@ -1,0 +1,10 @@
+{{ config(materialized='incremental') }}
+
+SELECT 
+    {{ dbt_utils.generate_surrogate_key(['o.order_hk', 'c.customer_hk']) }} AS link_order_customer_hk,
+    o.order_hk,
+    c.customer_hk,
+    o.load_timestamp,
+    o.record_source
+FROM {{ ref('stg_orders') }} o
+JOIN {{ ref('hub_customer') }} c ON o.customer_id = c.customer_id

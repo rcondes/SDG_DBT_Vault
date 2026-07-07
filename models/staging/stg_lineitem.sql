@@ -2,7 +2,7 @@
 with source_data as (select * from {{ source('raw_source', 'raw_lineitem') }}),
 final as (
     select
-        lower(md5(concat(cast(l_orderkey as string), cast(l_linenumber as string)))) as lineitem_hk,
+        lower(md5(concat(cast(trim(l_orderkey) as varchar(100)), cast(l_linenumber as string)))) as lineitem_hk,
         l_orderkey as order_id,
         l_partkey as part_id,
         l_suppkey as supplier_id,

@@ -1,0 +1,13 @@
+{{ config(materialized='incremental') }}
+
+SELECT 
+    {{ dbt_utils.generate_surrogate_key(['o.order_hk', 'p.part_hk', 's.supplier_hk']) }} AS link_order_lineitem_hk,
+    o.order_hk,
+    p.part_hk,
+    s.supplier_hk,
+    o.load_timestamp,
+    o.record_source
+FROM {{ ref('stg_lineitem') }} li
+JOIN {{ ref('hub_orders') }} o ON li.order_id = o.order_id
+JOIN {{ ref('hub_part') }} p ON li.part_id = p.part_id
+JOIN {{ ref('hub_supplier') }} s ON li.supplier_id = s.supplier_id
