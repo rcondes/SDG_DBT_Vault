@@ -7,8 +7,7 @@ with src as (
     lower(md5(cast(supplier_id as varchar))) as hub_supplier_key,
     part_id,
     supplier_id,
-    load_timestamp as load_dttm,
-    'raw_partsupp' as record_source
+    load_timestamp as load_dttm
   from 
     {{ ref('stg_partsupp') }}
   where 

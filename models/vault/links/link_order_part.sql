@@ -8,8 +8,7 @@ with src as (
     order_id,
     line_number,
     part_id,
-    load_timestamp as load_dttm,
-    'raw_lineitem' as record_source
+    load_timestamp as load_dttm
   from 
     {{ ref('stg_lineitem') }}
   where order_id is not null and line_number is not null and part_id is not null
