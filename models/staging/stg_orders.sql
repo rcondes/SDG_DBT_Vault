@@ -15,11 +15,12 @@ final as (
     o_orderpriority as order_priority,
     o_clerk as clerk,
     o_shippriority as ship_priority,
-    o_comment as comment,
+    o_comment as order_comment,
     o_load_timestamp as load_timestamp,
-    o_version as version,
+    o_version as order_version,
     'raw_orders' as record_source
-  from source_data
+  from 
+    source_data
 )
 
 select * from final
