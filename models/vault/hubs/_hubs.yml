@@ -1,4 +1,4 @@
-version: 1
+version: 2
 
 models:
   - name: hub_customer
@@ -6,35 +6,34 @@ models:
       tags: ['hub']
     description: "Hub de clientes: una fila por business key"
     columns:
-      - name: hub_key
+      - name: customer_hk
         description: "Hash de la business key (md5 lower)"
         tests:
           - not_null
           - unique
-      - name: business_key
-        description: "Clave de negocio original (c_custkey)"
+      - name: customer_id
+        description: "Clave de negocio original"
         tests:
           - not_null
           - unique
-      - name: first_seen_dttm
+      - name: load_timestamp
         description: "Fecha/hora en que se detectó por primera vez la business key"
       - name: record_source
-        description: "Origen del registro"
 
   - name: hub_orders
     config:
       tags: ['hub']
     description: "Hub de pedidos: una fila por business key"
     columns:
-      - name: hub_key
+      - name: order_hk
         tests:
           - not_null
           - unique
-      - name: business_key
+      - name: order_id
         tests:
           - not_null
           - unique
-      - name: first_seen_dttm
+      - name: load_timestamp
       - name: record_source
 
   - name: hub_part
@@ -42,15 +41,15 @@ models:
       tags: ['hub']
     description: "Hub de partes: una fila por business key"
     columns:
-      - name: hub_key
+      - name: part_hk
         tests:
           - not_null
           - unique
-      - name: business_key
+      - name: part_id
         tests:
           - not_null
           - unique
-      - name: first_seen_dttm
+      - name: load_timestamp
       - name: record_source
 
   - name: hub_supplier
@@ -58,15 +57,15 @@ models:
       tags: ['hub']
     description: "Hub de proveedores: una fila por business key"
     columns:
-      - name: hub_key
+      - name: supplier_hk
         tests:
           - not_null
           - unique
-      - name: business_key
+      - name: supplier_id
         tests:
           - not_null
           - unique
-      - name: first_seen_dttm
+      - name: load_timestamp
       - name: record_source
 
   - name: hub_nation
@@ -74,15 +73,15 @@ models:
       tags: ['hub']
     description: "Hub de nation: referencia geográfica"
     columns:
-      - name: hub_key
+      - name: nation_hk
         tests:
           - not_null
           - unique
-      - name: business_key
+      - name: nation_id
         tests:
           - not_null
           - unique
-      - name: first_seen_dttm
+      - name: load_timestamp
       - name: record_source
 
   - name: hub_region
@@ -90,13 +89,13 @@ models:
       tags: ['hub']
     description: "Hub de region: referencia geográfica"
     columns:
-      - name: hub_key
+      - name: region_hk
         tests:
           - not_null
           - unique
-      - name: business_key
+      - name: region_id
         tests:
           - not_null
           - unique
-      - name: first_seen_dttm
+      - name: load_timestamp
       - name: record_source

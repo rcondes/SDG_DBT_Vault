@@ -1,38 +1,36 @@
-version: 1
+version: 2
 
 models:
   - name: link_order_part
-    config:
-      tags: ['link']
-    description: "Link entre orders y parts (lineitems)"
+    description: "Link que relaciona órdenes con sus partes (lineitem)."
     columns:
       - name: link_key
-        tests: [not_null, unique]
+        tests: 
+          - not_null
+          - unique
       - name: hub_order_key
-        tests: [not_null]
+        tests: 
+          - not_null
       - name: hub_part_key
-        tests: [not_null]
-      - name: order_id
-        tests: [not_null]
-      - name: line_number
-      - name: part_id
+        tests: 
+          - not_null
       - name: load_dttm
-      - name: record_source
+        tests: 
+          - not_null
 
   - name: link_part_supplier
-    config:
-      tags: ['link']
-    description: "Link entre parts y suppliers (partsupp)"
+    description: "Link que relaciona partes con sus proveedores (partsupp)."
     columns:
       - name: link_key
-        tests: [not_null, unique]
+        tests: 
+          - not_null
+          - unique
       - name: hub_part_key
-        tests: [not_null]
+        tests: 
+          - not_null
       - name: hub_supplier_key
-        tests: [not_null]
-      - name: part_id
-        tests: [not_null]
-      - name: supplier_id
-        tests: [not_null]
+        tests: 
+          - not_null
       - name: load_dttm
-      - name: record_source
+        tests: 
+          - not_null

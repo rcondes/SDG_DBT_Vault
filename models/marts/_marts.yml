@@ -1,0 +1,30 @@
+version: 1
+
+models:
+  - name: mart_orders_lineitem
+    config:
+      tags: ['mart']
+    description: "Detalle de líneas de pedido con métricas y descripciones."
+    columns:
+      - name: order_line_key
+        tests: [not_null, unique]
+      - name: order_id
+        tests: [not_null]
+      - name: line_total
+        tests: [not_null]
+
+  - name: mart_parts_performance
+    config:
+      tags: ['mart']
+    description: "Agregados de ventas y rendimiento por producto."
+    columns:
+      - name: part_id
+        tests: [not_null, unique]
+
+  - name: mart_customer
+    config:
+      tags: ['mart']
+    description: "Resumen de clientes y actividad de pedidos."
+    columns:
+      - name: customer_id
+        tests: [not_null, unique]

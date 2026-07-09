@@ -10,7 +10,7 @@ final as (
     n_nationkey as nation_id,
     n_name as nation_name,
     n_regionkey as region_id,
-    n_comment as comment,
+    n_comment as nation_comment,
     n_load_timestamp as load_timestamp,
     n_version as nation_version,
     'raw_nation' as record_source
