@@ -1,0 +1,220 @@
+version: 2
+
+models:
+  - name: stg_customer
+    description: "Staging para raw_customer: limpieza mínima y mapeo de columnas."
+    columns:
+      - name: customer_id
+        description: "Clave de cliente (business key) proveniente de c_custkey"
+        tests: [not_null, unique]
+      - name: customer_name
+        description: "Nombre del cliente (c_name)"
+        tests: [not_null]
+      - name: address
+        description: "Dirección del cliente (c_address)"
+      - name: nation_id
+        description: "FK a nation (c_nationkey)"
+      - name: phone
+        description: "Teléfono (c_phone)"
+      - name: account_balance
+        description: "Saldo de cuenta (c_acctbal)"
+      - name: market_segment
+        description: "Segmento de mercado (c_mktsegment)"
+      - name: comment
+        description: "Comentario libre (c_comment)"
+      - name: load_timestamp
+        description: "Timestamp de carga proveniente del raw (c_load_timestamp)"
+      - name: version
+        description: "Periodo/version proveniente del raw (c_version)"
+      - name: record_source
+        description: "Origen del registro (p. ej. 'raw_customer')"
+
+  - name: stg_orders
+    description: "Staging para raw_orders: mapeo y limpieza mínima."
+    columns:
+      - name: order_id
+        description: "Clave de pedido (o_orderkey)"
+        tests: [not_null, unique]
+      - name: customer_id
+        description: "FK a cliente (o_custkey)"
+        tests: [not_null]
+      - name: order_status
+        description: "Estado del pedido (o_orderstatus)"
+      - name: total_price
+        description: "Importe total (o_totalprice)"
+      - name: order_date
+        description: "Fecha de pedido (o_orderdate)"
+      - name: order_priority
+        description: "Prioridad del pedido (o_orderpriority)"
+      - name: clerk
+        description: "Clerk (o_clerk)"
+      - name: ship_priority
+        description: "Ship priority (o_shippriority)"
+      - name: comment
+        description: "Comentario (o_comment)"
+      - name: load_timestamp
+        description: "Timestamp de carga (o_load_timestamp)"
+      - name: version
+        description: "Periodo/version (o_version)"
+      - name: record_source
+        description: "Origen del registro (p. ej. 'raw_orders')"
+
+  - name: stg_lineitem
+    description: "Staging para raw_lineitem: mapeo y normalización de columnas."
+    columns:
+      - name: order_id
+        description: "FK a orders (l_orderkey)"
+        tests: [not_null]
+      - name: line_number
+        description: "Número de línea (l_linenumber)"
+        tests: [not_null]
+      - name: part_id
+        description: "FK a part (l_partkey)"
+      - name: supplier_id
+        description: "FK a supplier (l_suppkey)"
+      - name: quantity
+        description: "Cantidad (l_quantity)"
+      - name: extended_price
+        description: "Precio extendido (l_extendedprice)"
+      - name: discount
+        description: "Descuento (l_discount)"
+      - name: tax
+        description: "Impuesto (l_tax)"
+      - name: return_flag
+        description: "Return flag (l_returnflag)"
+      - name: line_status
+        description: "Estado de la línea (l_linestatus)"
+      - name: ship_date
+        description: "Fecha de envío (l_shipdate)"
+      - name: commit_date
+        description: "Fecha de commit (l_commitdate)"
+      - name: receipt_date
+        description: "Fecha de recepción (l_receiptdate)"
+      - name: ship_instruct
+        description: "Instrucciones de envío (l_shipinstruct)"
+      - name: ship_mode
+        description: "Modo de envío (l_shipmode)"
+      - name: comment
+        description: "Comentario (l_comment)"
+      - name: load_timestamp
+        description: "Timestamp de carga (l_load_timestamp)"
+      - name: version
+        description: "Periodo/version (l_version)"
+      - name: record_source
+        description: "Origen del registro (p. ej. 'raw_lineitem')"
+
+  - name: stg_part
+    description: "Staging para raw_part: mapeo y limpieza mínima."
+    columns:
+      - name: part_id
+        description: "Clave de parte (p_partkey)"
+        tests: [not_null, unique]
+      - name: part_name
+        description: "Nombre de la parte (p_name)"
+        tests: [not_null]
+      - name: manufacturer
+        description: "Fabricante (p_mfgr)"
+      - name: brand
+        description: "Marca (p_brand)"
+      - name: type
+        description: "Tipo (p_type)"
+      - name: size
+        description: "Tamaño (p_size)"
+      - name: container
+        description: "Contenedor (p_container)"
+      - name: retail_price
+        description: "Precio de venta (p_retailprice)"
+      - name: comment
+        description: "Comentario (p_comment)"
+      - name: load_timestamp
+        description: "Timestamp de carga (p_load_timestamp)"
+      - name: version
+        description: "Periodo/version (p_version)"
+      - name: record_source
+        description: "Origen del registro (p. ej. 'raw_part')"
+
+  - name: stg_supplier
+    description: "Staging para raw_supplier: mapeo y normalización."
+    columns:
+      - name: supplier_id
+        description: "Clave de proveedor (s_suppkey)"
+        tests: [not_null, unique]
+      - name: supplier_name
+        description: "Nombre del proveedor (s_name)"
+        tests: [not_null]
+      - name: address
+        description: "Dirección del proveedor (s_address)"
+      - name: nation_id
+        description: "FK a nation (s_nationkey)"
+      - name: phone
+        description: "Teléfono (s_phone)"
+      - name: account_balance
+        description: "Saldo de cuenta proveedor (s_acctbal)"
+      - name: comment
+        description: "Comentario (s_comment)"
+      - name: load_timestamp
+        description: "Timestamp de carga (s_load_timestamp)"
+      - name: version
+        description: "Periodo/version (s_version)"
+      - name: record_source
+        description: "Origen del registro (p. ej. 'raw_supplier')"
+
+  - name: stg_partsupp
+    description: "Staging para raw_partsupp: mapeo y limpieza mínima."
+    columns:
+      - name: part_id
+        description: "FK a part (ps_partkey)"
+        tests: [not_null]
+      - name: supplier_id
+        description: "FK a supplier (ps_suppkey)"
+        tests: [not_null]
+      - name: avail_quantity
+        description: "Cantidad disponible (ps_availqty)"
+      - name: supply_cost
+        description: "Coste de suministro (ps_supplycost)"
+      - name: comment
+        description: "Comentario (ps_comment)"
+      - name: load_timestamp
+        description: "Timestamp de carga (ps_load_timestamp)"
+      - name: version
+        description: "Periodo/version (ps_version)"
+      - name: record_source
+        description: "Origen del registro (p. ej. 'raw_partsupp')"
+
+  - name: stg_nation
+    description: "Staging para raw_nation: mapeo y normalización."
+    columns:
+      - name: nation_id
+        description: "Clave de nation (n_nationkey)"
+        tests: [not_null, unique]
+      - name: nation_name
+        description: "Nombre de la nación (n_name)"
+        tests: [not_null]
+      - name: region_id
+        description: "FK a region (n_regionkey)"
+      - name: comment
+        description: "Comentario (n_comment)"
+      - name: load_timestamp
+        description: "Timestamp de carga (n_load_timestamp)"
+      - name: version
+        description: "Periodo/version (n_version)"
+      - name: record_source
+        description: "Origen del registro (p. ej. 'raw_nation')"
+
+  - name: stg_region
+    description: "Staging para raw_region: mapeo y normalización."
+    columns:
+      - name: region_id
+        description: "Clave de region (r_regionkey)"
+        tests: [not_null, unique]
+      - name: region_name
+        description: "Nombre de la región (r_name)"
+        tests: [not_null]
+      - name: comment
+        description: "Comentario (r_comment)"
+      - name: load_timestamp
+        description: "Timestamp de carga (r_load_timestamp)"
+      - name: version
+        description: "Periodo/version (r_version)"
+      - name: record_source
+        description: "Origen del registro (p. ej. 'raw_region')"
