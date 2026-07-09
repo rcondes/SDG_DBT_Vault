@@ -1,131 +1,116 @@
--- models/vault/sat/sat_supplier.sql
-{{ config(materialized='incremental', unique_key='sat_supplier_key', tags=['sat']) }}
+{{ config(
+    materialized='incremental',
+    unique_key='sat_hk'
+) }}
 
-with src_raw as (
-  select
-    supplier_id,
-    supplier_name,
-    supplier_address,
-    nation_id,
-    supplier_phone,
-    account_balance,
-    supplier_comment,
-    load_timestamp,
-    supplier_version
-  from {{ ref('stg_supplier') }}
-  where supplier_id is not null
+with source_data as (
+    select * from {{ ref('stg_supplier') }}
 ),
 
-src as (
-  select
-    lower(md5(cast(supplier_id as varchar))) as parent_hub_key,
-    supplier_id,
-    supplier_name,
-    supplier_address,
-    nation_id,
-    supplier_phone,
-    account_balance,
-    supplier_comment,
-    load_timestamp as sat_load_dttm,
-    supplier_version,
-    lower(md5(concat_ws('||',
-      coalesce(supplier_name,''),
-      coalesce(supplier_address,''),
-      coalesce(nation_id::varchar,''),
-      coalesce(supplier_phone,''),
-      coalesce(account_balance::varchar,''),
-      coalesce(supplier_comment,'')
-    ))) as attribute_hash
-  from (
+staging as (
     select
-      *,
-      row_number() over (
-        partition by supplier_id
-        order by supplier_version desc, load_timestamp desc
-      ) as rn
-    from src_raw
-  ) t
-  where rn = 1
+        supplier_id,
+        supplier_name,
+        supplier_address,
+        nation_id,
+        supplier_phone,
+        account_balance,
+        supplier_comment,
+        load_timestamp as valid_from,
+        
+        {{ dbt_utils.generate_surrogate_key([
+            'supplier_id', 
+            'load_timestamp'
+        ]) }} as sat_hk,
+
+        {{ dbt_utils.generate_surrogate_key([
+            'supplier_name', 
+            'supplier_address', 
+            'nation_id', 
+            'supplier_phone', 
+            'account_balance', 
+            'supplier_comment'
+        ]) }} as hashdiff
+
+    from source_data
 )
 
-{%- if is_incremental() %}
+{% if is_incremental() %}
 
-  {% set tmp_table = "tmp_dbt_sat_supplier_candidates_" ~ run_started_at.strftime('%s') %}
+, current_sat as (
+    select *
+    from {{ this }}
+    where valid_to = cast('9999-12-31 23:59:59' as timestamp)
+),
 
-  {% set create_tmp %}
-  create or replace temporary table {{ tmp_table }} as
-
-  with src_raw as (
+new_records as (
     select
-      supplier_id,
-      supplier_name,
-      supplier_address,
-      nation_id,
-      supplier_phone,
-      account_balance,
-      supplier_comment,
-      load_timestamp,
-      supplier_version
-    from {{ ref('stg_supplier') }}
-    where supplier_id is not null
-  ),
+        s.sat_hk,
+        s.supplier_id,
+        s.supplier_name,
+        s.supplier_address,
+        s.nation_id,
+        s.supplier_phone,
+        s.account_balance,
+        s.supplier_comment,
+        s.valid_from,
+        cast('9999-12-31 23:59:59' as timestamp) as valid_to,
+        s.hashdiff
+    from staging s
+    left join current_sat cs on s.supplier_id = cs.supplier_id
+    where cs.supplier_id is null
+),
 
-  src as (
+changed_new_versions as (
     select
-      lower(md5(cast(supplier_id as varchar))) as parent_hub_key,
-      supplier_id,
-      supplier_name,
-      supplier_address,
-      nation_id,
-      supplier_phone,
-      account_balance,
-      supplier_comment,
-      load_timestamp as sat_load_dttm,
-      supplier_version,
-      lower(md5(concat_ws('||',
-        coalesce(supplier_name,''),
-        coalesce(supplier_address,''),
-        coalesce(nation_id::varchar,''),
-        coalesce(supplier_phone,''),
-        coalesce(account_balance::varchar,''),
-        coalesce(supplier_comment,'')
-      ))) as attribute_hash
-    from (
-      select
-        *,
-        row_number() over (
-          partition by supplier_id
-          order by supplier_version desc, load_timestamp desc
-        ) as rn
-      from src_raw
-    ) t
-    where rn = 1
-  )
+        s.sat_hk,
+        s.supplier_id,
+        s.supplier_name,
+        s.supplier_address,
+        s.nation_id,
+        s.supplier_phone,
+        s.account_balance,
+        s.supplier_comment,
+        s.valid_from,
+        cast('9999-12-31 23:59:59' as timestamp) as valid_to,
+        s.hashdiff
+    from staging s
+    inner join current_sat cs on s.supplier_id = cs.supplier_id
+    where s.hashdiff != cs.hashdiff
+),
 
-  select s.*
-  from src s
-  left join {{ this }} t
-    on t.parent_hub_key = s.parent_hub_key
-    and t.effective_to = '9999-12-31'::timestamp
-  where t.parent_hub_key is null
-     or t.attribute_hash <> s.attribute_hash
-  {% endset %}
+changed_old_versions as (
+    select
+        cs.sat_hk,
+        cs.supplier_id,
+        cs.supplier_name,
+        cs.supplier_address,
+        cs.nation_id,
+        cs.supplier_phone,
+        cs.account_balance,
+        cs.supplier_comment,
+        cs.valid_from,
+        s.valid_from as valid_to,
+        cs.hashdiff
+    from current_sat cs
+    inner join staging s on cs.supplier_id = s.supplier_id
+    where s.hashdiff != cs.hashdiff
+),
 
-  {% do run_query(create_tmp) %}
+final as (
+    select * from new_records
+    union all
+    select * from changed_new_versions
+    union all
+    select * from changed_old_versions
+)
 
-  {% do run_query(
-    "update " ~ this ~ " target set effective_to = dateadd(second, -1, src.sat_load_dttm) from " ~ tmp_table ~ " src where target.parent_hub_key = src.parent_hub_key and target.effective_to = '9999-12-31'::timestamp"
-  ) %}
+select * from final
 
-  {% do run_query(
-    "insert into " ~ this ~ " (sat_supplier_key,parent_hub_key,supplier_id,supplier_name,supplier_address,nation_id,supplier_phone,account_balance,supplier_comment,attribute_hash,effective_from,effective_to,load_dttm,supplier_version) select uuid_string(), parent_hub_key,supplier_id,supplier_name,supplier_address,nation_id,supplier_phone,account_balance,supplier_comment,attribute_hash,sat_load_dttm,'9999-12-31'::timestamp,sat_load_dttm,supplier_version from " ~ tmp_table
-  ) %}
+{% else %}
 
-  {% do run_query("drop table if exists " ~ tmp_table) %}
-
-  select
-    sat_supplier_key,
-    parent_hub_key,
+select
+    sat_hk,
     supplier_id,
     supplier_name,
     supplier_address,
@@ -133,30 +118,9 @@ src as (
     supplier_phone,
     account_balance,
     supplier_comment,
-    attribute_hash,
-    effective_from,
-    effective_to,
-    load_dttm,
-    supplier_version
-  from {{ this }}
+    valid_from,
+    cast('9999-12-31 23:59:59' as timestamp) as valid_to,
+    hashdiff
+from staging
 
-{%- else %}
-
-  select
-    uuid_string() as sat_supplier_key,
-    parent_hub_key,
-    supplier_id,
-    supplier_name,
-    supplier_address,
-    nation_id,
-    supplier_phone,
-    account_balance,
-    supplier_comment,
-    attribute_hash,
-    sat_load_dttm as effective_from,
-    '9999-12-31'::timestamp as effective_to,
-    sat_load_dttm as load_dttm,
-    supplier_version
-  from src
-
-{%- endif %}
+{% endif %}

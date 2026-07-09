@@ -1,34 +1,31 @@
-{{ config(materialized='incremental', unique_key='link_key', tags=['link']) }}
+{{ config(
+    materialized='incremental',
+    unique_key='link_key',
+    tags=['link']
+) }}
 
 with src as (
   select
-    lower(md5(cast(concat(part_id,'||',supplier_id) as varchar))) as link_key,
-    lower(md5(cast(part_id as varchar))) as hub_part_key,
-    lower(md5(cast(supplier_id as varchar))) as hub_supplier_key,
+    -- Hash del LINK generado con la macro estándar
+    {{ dbt_utils.generate_surrogate_key(['part_id', 'supplier_id', 'ps_version']) }} as link_key,
+    
+    -- Hashes de los HUBs (deben coincidir con la lógica usada en los modelos de HUB)
+    {{ dbt_utils.generate_surrogate_key(['part_id']) }} as hub_part_key,
+    {{ dbt_utils.generate_surrogate_key(['supplier_id']) }} as hub_supplier_key,
+    
     part_id,
     supplier_id,
     load_timestamp as load_dttm
   from 
     {{ ref('stg_partsupp') }}
   where 
-    part_id is not null and supplier_id is not null
-),
-
-existing as (
-    {% if is_incremental() %}
-        select link_key from {{ this }}
-    {% else %}
-        -- primera ejecución: tabla objetivo no existe aún, devolvemos conjunto vacío
-        select null::varchar as link_key where false
-    {% endif %}
-),
-
-to_insert as (
-  select s.*
-  from src s
-  left join existing l
-    on s.link_key = l.link_key
-  where l.link_key is null
+    part_id is not null 
+    and supplier_id is not null
 )
 
-select * from to_insert
+select * from src
+
+{% if is_incremental() %}
+    -- Solo insertamos registros nuevos que no estén ya en la tabla final
+    where link_key not in (select link_key from {{ this }})
+{% endif %}

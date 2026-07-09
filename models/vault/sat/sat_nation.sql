@@ -1,164 +1,107 @@
--- models/vault/sat/sat_nation.sql
-{{ config(materialized='incremental', unique_key='sat_nation_key', tags=['sat']) }}
+{{ config(materialized='incremental', unique_key='sat_hk') }}
 
-with src_raw as (
-  select
-    nation_id,
-    nation_name,
-    region_id,
-    comment,
-    load_timestamp,
-    nation_version
-  from {{ ref('stg_nation') }}
-  where nation_id is not null
+with source_data as (
+    select * from {{ ref('stg_nation') }}
 ),
 
-src as (
-  select
-    lower(md5(cast(nation_id as varchar))) as parent_hub_key,
-    nation_id,
-    nation_name,
-    region_id,
-    comment,
-    load_timestamp as sat_load_dttm,
-    nation_version,
-    lower(md5(concat_ws('||',
-      coalesce(nation_name,''),
-      coalesce(region_id::varchar,''),
-      coalesce(comment,'')
-    ))) as attribute_hash
-  from (
+staging as (
     select
-      *,
-      row_number() over (partition by nation_id order by nation_version desc, load_timestamp desc) as rn
-    from src_raw
-  ) t
-  where rn = 1
+        nation_id,
+        nation_name,
+        region_id,
+        nation_comment,
+        load_timestamp as valid_from,
+        
+        -- PK del Satélite
+        {{ dbt_utils.generate_surrogate_key([
+            'nation_id', 
+            'load_timestamp'
+        ]) }} as sat_hk,
+
+        -- Hash de atributos para detectar cambios
+        {{ dbt_utils.generate_surrogate_key([
+            'nation_name', 
+            'region_id', 
+            'nation_comment'
+        ]) }} as hashdiff
+
+    from source_data
 )
 
-{%- if is_incremental() %}
+{% if is_incremental() %}
 
-  {% set tmp_table = "tmp_dbt_sat_nation_candidates_" ~ run_started_at.strftime('%s') %}
+, current_sat as (
+    select *
+    from {{ this }}
+    where valid_to = cast('9999-12-31 23:59:59' as timestamp)
+),
 
-  {% set create_tmp %}
-  create or replace temporary table {{ tmp_table }} as
-
-  with src_raw as (
+new_records as (
     select
-      nation_id,
-      nation_name,
-      region_id,
-      comment,
-      load_timestamp,
-      nation_version
-    from {{ ref('stg_nation') }}
-    where nation_id is not null
-  ),
+        s.sat_hk,
+        s.nation_id,
+        s.nation_name,
+        s.region_id,
+        s.nation_comment,
+        s.valid_from,
+        cast('9999-12-31 23:59:59' as timestamp) as valid_to,
+        s.hashdiff
+    from staging s
+    left join current_sat cs on s.nation_id = cs.nation_id
+    where cs.nation_id is null
+),
 
-  src as (
+changed_new_versions as (
     select
-      lower(md5(cast(nation_id as varchar))) as parent_hub_key,
-      nation_id,
-      nation_name,
-      region_id,
-      comment,
-      load_timestamp as sat_load_dttm,
-      nation_version,
-      lower(md5(concat_ws('||',
-        coalesce(nation_name,''),
-        coalesce(region_id::varchar,''),
-        coalesce(comment,'')
-      ))) as attribute_hash
-    from (
-      select
-        *,
-        row_number() over (partition by nation_id order by nation_version desc, load_timestamp desc) as rn
-      from src_raw
-    ) t
-    where rn = 1
-  )
+        s.sat_hk,
+        s.nation_id,
+        s.nation_name,
+        s.region_id,
+        s.nation_comment,
+        s.valid_from,
+        cast('9999-12-31 23:59:59' as timestamp) as valid_to,
+        s.hashdiff
+    from staging s
+    inner join current_sat cs on s.nation_id = cs.nation_id
+    where s.hashdiff != cs.hashdiff
+),
 
-  select s.*
-  from src s
-  left join {{ this }} t
-    on t.parent_hub_key = s.parent_hub_key
-    and t.effective_to = '9999-12-31'::timestamp
-  where t.parent_hub_key is null
-     or t.attribute_hash <> s.attribute_hash
-  {% endset %}
+changed_old_versions as (
+    select
+        cs.sat_hk,
+        cs.nation_id,
+        cs.nation_name,
+        cs.region_id,
+        cs.nation_comment,
+        cs.valid_from,
+        s.valid_from as valid_to,
+        cs.hashdiff
+    from current_sat cs
+    inner join staging s on cs.nation_id = s.nation_id
+    where s.hashdiff != cs.hashdiff
+),
 
-  {% do run_query(create_tmp) %}
+final as (
+    select * from new_records
+    union all
+    select * from changed_new_versions
+    union all
+    select * from changed_old_versions
+)
 
-  {% set update_open %}
-  update {{ this }} target
-  set effective_to = dateadd(second, -1, src.sat_load_dttm)
-  from {{ tmp_table }} src
-  where target.parent_hub_key = src.parent_hub_key
-    and target.effective_to = '9999-12-31'::timestamp
-  {% endset %}
+select * from final
 
-  {% do run_query(update_open) %}
+{% else %}
 
-  {% set insert_new %}
-  insert into {{ this }} (
-    sat_nation_key,
-    parent_hub_key,
+select
+    sat_hk,
     nation_id,
     nation_name,
     region_id,
-    comment,
-    attribute_hash,
-    effective_from,
-    effective_to,
-    load_dttm,
-    nation_version
-  )
-  select
-    uuid_string(),
-    parent_hub_key,
-    nation_id,
-    nation_name,
-    region_id,
-    comment,
-    attribute_hash,
-    sat_load_dttm,
-    '9999-12-31'::timestamp,
-    sat_load_dttm,
-    nation_version
-  from {{ tmp_table }}
-  {% endset %}
+    nation_comment,
+    valid_from,
+    cast('9999-12-31 23:59:59' as timestamp) as valid_to,
+    hashdiff
+from staging
 
-  {% do run_query(insert_new) %}
-  {% do run_query("drop table if exists " ~ tmp_table) %}
-
-  select
-    sat_nation_key,
-    parent_hub_key,
-    nation_id,
-    nation_name,
-    region_id,
-    comment,
-    attribute_hash,
-    effective_from,
-    effective_to,
-    load_dttm,
-    nation_version
-  from {{ this }}
-
-{%- else %}
-
-  select
-    uuid_string() as sat_nation_key,
-    parent_hub_key,
-    nation_id,
-    nation_name,
-    region_id,
-    comment,
-    attribute_hash,
-    sat_load_dttm as effective_from,
-    '9999-12-31'::timestamp as effective_to,
-    sat_load_dttm as load_dttm,
-    nation_version
-  from src
-
-{%- endif %}
+{% endif %}

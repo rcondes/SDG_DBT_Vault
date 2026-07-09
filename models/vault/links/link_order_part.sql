@@ -1,34 +1,29 @@
-{{ config(materialized='incremental', unique_key='link_key', tags=['link']) }}
+{{ config(
+    materialized='incremental',
+    unique_key='link_key',
+    tags=['link']
+) }}
 
 with src as (
   select
-    lower(md5(cast(concat(order_id,'||',line_number,'||',part_id) as varchar))) as link_key,
-    lower(md5(cast(order_id as varchar))) as hub_order_key,
-    lower(md5(cast(part_id as varchar))) as hub_part_key,
+    -- Usamos la macro estándar para consistencia
+    {{ dbt_utils.generate_surrogate_key(['order_id', 'line_number', 'part_id', 'li_version']) }} as link_key,
+    {{ dbt_utils.generate_surrogate_key(['order_id']) }} as hub_order_key,
+    {{ dbt_utils.generate_surrogate_key(['part_id']) }} as hub_part_key,
     order_id,
     line_number,
     part_id,
     load_timestamp as load_dttm
   from 
     {{ ref('stg_lineitem') }}
-  where order_id is not null and line_number is not null and part_id is not null
-),
-
-existing as (
-    {% if is_incremental() %}
-        select link_key from {{ this }}
-    {% else %}
-        -- primera ejecución: tabla objetivo no existe aún, devolvemos conjunto vacío
-        select null::varchar as link_key where false
-    {% endif %}
-),
-
-to_insert as (
-  select s.*
-  from src s
-  left join existing l
-    on s.link_key = l.link_key
-  where l.link_key is null
+  where order_id is not null 
+    and line_number is not null 
+    and part_id is not null
 )
 
-select * from to_insert
+select * from src
+
+{% if is_incremental() %}
+    -- Solo insertamos si el link_key no existe en la tabla actual
+    where link_key not in (select link_key from {{ this }})
+{% endif %}

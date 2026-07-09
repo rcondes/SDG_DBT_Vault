@@ -1,215 +1,133 @@
-{{ config(materialized='incremental', unique_key='sat_customer_key', tags=['sat']) }}
+{{ config(materialized='incremental', unique_key='sat_hk') }}
 
-with src_raw as (
-  select
-    customer_id,
-    customer_name,
-    customer_address,
-    customer_nation_id,
-    customer_phone,
-    account_balance,
-    market_segment,
-    customer_comment,
-    load_timestamp,
-    customer_version
-  from {{ ref('stg_customer') }}
-  where customer_id is not null
+with source_data as (
+    select * from {{ ref('stg_customer') }}
 ),
 
-src as (
-  select
-    lower(md5(cast(customer_id as varchar))) as parent_hub_key,
-    customer_id,
-    customer_name,
-    customer_address,
-    customer_nation_id,
-    customer_phone,
-    account_balance,
-    market_segment,
-    customer_comment,
-    load_timestamp as sat_load_dttm,
-    customer_version,
-    lower(md5(
-      concat_ws('||',
-        coalesce(customer_name,''),
-        coalesce(customer_address,''),
-        coalesce(customer_nation_id::varchar,''),
-        coalesce(customer_phone,''),
-        coalesce(account_balance::varchar,''),
-        coalesce(market_segment,''),
-        coalesce(customer_comment,'')
-      )
-    )) as attribute_hash
-  from (
+-- 0. Preparamos los datos y calculamos los hashes que el STG no trae
+staging as (
     select
-      *,
-      row_number() over (partition by customer_id order by customer_version desc, load_timestamp desc) as rn
-    from src_raw
-  ) t
-  where rn = 1
+        customer_id,
+        customer_name,
+        customer_address,
+        customer_nation_id,
+        customer_phone,
+        account_balance,
+        market_segment,
+        customer_comment,
+        load_timestamp as valid_from,
+        
+        -- Hash único por cada versión del cliente (PK del Satélite)
+        {{ dbt_utils.generate_surrogate_key(['customer_id', 'load_timestamp']) }} as sat_hk,
+
+        -- Hash de diferencia para detectar si los datos del cliente han cambiado
+        {{ dbt_utils.generate_surrogate_key([
+            'customer_name', 
+            'customer_address', 
+            'customer_nation_id', 
+            'customer_phone', 
+            'account_balance', 
+            'market_segment', 
+            'customer_comment']) }} as hashdiff
+    from 
+        source_data
 )
 
-{%- if is_incremental() %}
+{% if not is_incremental() %}
+-- CARGA INICIAL
+select
+    sat_hk,
+    customer_id,
+    customer_name,
+    customer_address,
+    customer_nation_id,
+    customer_phone,
+    account_balance,
+    market_segment,
+    customer_comment,
+    valid_from,
+    cast('9999-12-31 23:59:59' as timestamp) as valid_to,
+    hashdiff
+from 
+    staging
 
-  {% set tmp_table = "tmp_dbt_sat_customer_candidates_" ~ run_started_at.strftime('%s') %}
+{% else %}
+-- CARGAS INCREMENTALES
+, current_sat as (
+    select *
+    from {{ this }}
+    where valid_to = cast('9999-12-31 23:59:59' as timestamp)
+),
 
-  {# 1) Crear temp table con la definición completa de src y la lógica de candidates #}
-  {% set create_tmp %}
-  create or replace temporary table {{ tmp_table }} as
-
-  with src_raw as (
+-- 2. Clientes NUEVOS
+new_records as (
     select
-      customer_id,
-      customer_name,
-      customer_address,
-      customer_nation_id,
-      customer_phone,
-      account_balance,
-      market_segment,
-      customer_comment,
-      load_timestamp,
-      customer_version
-    from {{ ref('stg_customer') }}
-    where customer_id is not null
-  ),
+        s.sat_hk,
+        s.customer_id,
+        s.customer_name,
+        s.customer_address,
+        s.customer_nation_id,
+        s.customer_phone,
+        s.account_balance,
+        s.market_segment,
+        s.customer_comment,
+        s.valid_from,
+        cast('9999-12-31 23:59:59' as timestamp) as valid_to,
+        s.hashdiff
+    from staging s
+    left join current_sat cs on s.customer_id = cs.customer_id
+    where cs.customer_id is null
+),
 
-  src as (
+-- 3. Clientes existentes que TRAEN CAMBIOS: Insertamos la nueva versión vigente
+changed_new_versions as (
     select
-      lower(md5(cast(customer_id as varchar))) as parent_hub_key,
-      customer_id,
-      customer_name,
-      customer_address,
-      customer_nation_id,
-      customer_phone,
-      account_balance,
-      market_segment,
-      customer_comment,
-      load_timestamp as sat_load_dttm,
-      customer_version,
-      lower(md5(
-        concat_ws('||',
-          coalesce(customer_name,''),
-          coalesce(customer_address,''),
-          coalesce(customer_nation_id::varchar,''),
-          coalesce(customer_phone,''),
-          coalesce(account_balance::varchar,''),
-          coalesce(market_segment,''),
-          coalesce(customer_comment,'')
-        )
-      )) as attribute_hash
-    from (
-      select
-        *,
-        row_number() over (partition by customer_id order by customer_version desc, load_timestamp desc) as rn
-      from src_raw
-    ) t
-    where rn = 1
-  )
+        s.sat_hk,
+        s.customer_id,
+        s.customer_name,
+        s.customer_address,
+        s.customer_nation_id,
+        s.customer_phone,
+        s.account_balance,
+        s.market_segment,
+        s.customer_comment,
+        s.valid_from,
+        cast('9999-12-31 23:59:59' as timestamp) as valid_to,
+        s.hashdiff
+    from staging s
+    inner join current_sat cs on s.customer_id = cs.customer_id
+    where s.hashdiff != cs.hashdiff
+),
 
-  select
-    s.*
-  from src s
-  left join {{ this }} t
-    on t.parent_hub_key = s.parent_hub_key
-    and t.effective_to = '9999-12-31'::timestamp
-  where t.parent_hub_key is null
-     or t.attribute_hash <> s.attribute_hash
-  {% endset %}
+-- 4. Clientes existentes que TRAEN CAMBIOS: Cerramos la vigencia del registro antiguo
+changed_old_versions as (
+    select
+        cs.sat_hk,
+        cs.customer_id,
+        cs.customer_name,
+        cs.customer_address,
+        cs.customer_nation_id,
+        cs.customer_phone,
+        cs.account_balance,
+        cs.market_segment,
+        cs.customer_comment,
+        cs.valid_from,
+        s.valid_from as valid_to, -- Su fin de vigencia es el inicio de la nueva versión
+        cs.hashdiff
+    from current_sat cs
+    inner join staging s on cs.customer_id = s.customer_id
+    where s.hashdiff != cs.hashdiff
+),
 
-  {% do run_query(create_tmp) %}
+-- 5. Unión de todos los flujos incrementales calculados en esta ventana
+final as (
+    select * from new_records
+    union all
+    select * from changed_new_versions
+    union all
+    select * from changed_old_versions
+)
 
-  {# 2) End-date la fila abierta previa (si existe) #}
-  {% set update_open %}
-  update {{ this }} target
-  set effective_to = dateadd(second, -1, src.sat_load_dttm)
-  from {{ tmp_table }} src
-  where target.parent_hub_key = src.parent_hub_key
-    and target.effective_to = '9999-12-31'::timestamp
-  {% endset %}
+select * from final
 
-  {% do run_query(update_open) %}
-
-  {# 3) Insertar nuevas versiones #}
-  {% set insert_new %}
-  insert into {{ this }} (
-    sat_customer_key,
-    parent_hub_key,
-    customer_id,
-    customer_name,
-    customer_address,
-    customer_nation_id,
-    customer_phone,
-    account_balance,
-    market_segment,
-    customer_comment,
-    attribute_hash,
-    effective_from,
-    effective_to,
-    load_dttm,
-    customer_version
-  )
-  select
-    uuid_string() as sat_customer_key,
-    parent_hub_key,
-    customer_id,
-    customer_name,
-    customer_address,
-    customer_nation_id,
-    customer_phone,
-    account_balance,
-    market_segment,
-    customer_comment,
-    attribute_hash,
-    sat_load_dttm as effective_from,
-    '9999-12-31'::timestamp as effective_to,
-    sat_load_dttm as load_dttm,
-    customer_version
-  from {{ tmp_table }}
-  {% endset %}
-
-  {% do run_query(insert_new) %}
-
-  {# 4) Limpiar temp table #}
-  {% do run_query("drop table if exists " ~ tmp_table) %}
-
-  {# 5) Devolver filas para que dbt materialice la tabla #}
-  select
-    sat_customer_key,
-    parent_hub_key,
-    customer_id,
-    customer_name,
-    customer_address,
-    customer_nation_id,
-    customer_phone,
-    account_balance,
-    market_segment,
-    customer_comment,
-    attribute_hash,
-    effective_from,
-    effective_to,
-    load_dttm,
-    customer_version
-  from {{ this }}
-
-{%- else %}
-
-  {# Full-refresh: crear la tabla con la versión más reciente por business key #}
-  select
-    uuid_string() as sat_customer_key,
-    parent_hub_key,
-    customer_id,
-    customer_name,
-    customer_address,
-    customer_nation_id,
-    customer_phone,
-    account_balance,
-    market_segment,
-    customer_comment,
-    attribute_hash,
-    sat_load_dttm as effective_from,
-    '9999-12-31'::timestamp as effective_to,
-    sat_load_dttm as load_dttm,
-    customer_version
-  from src
-
-{%- endif %}
+{% endif %}
