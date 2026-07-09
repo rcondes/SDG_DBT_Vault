@@ -9,11 +9,12 @@ final as (
   select
     r_regionkey as region_id,
     r_name as region_name,
-    r_comment as comment,
+    r_comment as region_comment,
     r_load_timestamp as load_timestamp,
-    r_version as version,
+    r_version as region_version,
     'raw_region' as record_source
-  from source_data
+  from 
+    source_data
 )
 
 select * from final

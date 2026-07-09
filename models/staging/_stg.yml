@@ -2,11 +2,13 @@ version: 2
 
 models:
   - name: stg_customer
+    config:
+      tags: ['staging']
     description: "Staging para raw_customer: limpieza mínima y mapeo de columnas."
     columns:
       - name: customer_id
         description: "Clave de cliente (business key) proveniente de c_custkey"
-        tests: [not_null, unique]
+        tests: [not_null]
       - name: customer_name
         description: "Nombre del cliente (c_name)"
         tests: [not_null]
@@ -30,11 +32,13 @@ models:
         description: "Origen del registro (p. ej. 'raw_customer')"
 
   - name: stg_orders
+    config:
+      tags: ['staging']
     description: "Staging para raw_orders: mapeo y limpieza mínima."
     columns:
       - name: order_id
         description: "Clave de pedido (o_orderkey)"
-        tests: [not_null, unique]
+        tests: [not_null]
       - name: customer_id
         description: "FK a cliente (o_custkey)"
         tests: [not_null]
@@ -60,6 +64,8 @@ models:
         description: "Origen del registro (p. ej. 'raw_orders')"
 
   - name: stg_lineitem
+    config:
+      tags: ['staging']
     description: "Staging para raw_lineitem: mapeo y normalización de columnas."
     columns:
       - name: order_id
@@ -104,11 +110,13 @@ models:
         description: "Origen del registro (p. ej. 'raw_lineitem')"
 
   - name: stg_part
+    config:
+      tags: ['staging']
     description: "Staging para raw_part: mapeo y limpieza mínima."
     columns:
       - name: part_id
         description: "Clave de parte (p_partkey)"
-        tests: [not_null, unique]
+        tests: [not_null]
       - name: part_name
         description: "Nombre de la parte (p_name)"
         tests: [not_null]
@@ -134,11 +142,13 @@ models:
         description: "Origen del registro (p. ej. 'raw_part')"
 
   - name: stg_supplier
+    config:
+      tags: ['staging']
     description: "Staging para raw_supplier: mapeo y normalización."
     columns:
       - name: supplier_id
         description: "Clave de proveedor (s_suppkey)"
-        tests: [not_null, unique]
+        tests: [not_null]
       - name: supplier_name
         description: "Nombre del proveedor (s_name)"
         tests: [not_null]
@@ -160,6 +170,8 @@ models:
         description: "Origen del registro (p. ej. 'raw_supplier')"
 
   - name: stg_partsupp
+    config:
+      tags: ['staging']
     description: "Staging para raw_partsupp: mapeo y limpieza mínima."
     columns:
       - name: part_id
@@ -182,11 +194,13 @@ models:
         description: "Origen del registro (p. ej. 'raw_partsupp')"
 
   - name: stg_nation
+    config:
+      tags: ['staging']
     description: "Staging para raw_nation: mapeo y normalización."
     columns:
       - name: nation_id
         description: "Clave de nation (n_nationkey)"
-        tests: [not_null, unique]
+        tests: [not_null]
       - name: nation_name
         description: "Nombre de la nación (n_name)"
         tests: [not_null]
@@ -202,11 +216,13 @@ models:
         description: "Origen del registro (p. ej. 'raw_nation')"
 
   - name: stg_region
+    config:
+      tags: ['staging']
     description: "Staging para raw_region: mapeo y normalización."
     columns:
       - name: region_id
         description: "Clave de region (r_regionkey)"
-        tests: [not_null, unique]
+        tests: [not_null]
       - name: region_name
         description: "Nombre de la región (r_name)"
         tests: [not_null]

@@ -11,11 +11,12 @@ final as (
     ps_suppkey as supplier_id,
     ps_availqty as avail_quantity,
     ps_supplycost as supply_cost,
-    ps_comment as comment,
+    ps_comment,
     ps_load_timestamp as load_timestamp,
-    ps_version as version,
+    ps_version,
     'raw_partsupp' as record_source
-  from source_data
+  from 
+    source_data
 )
 
 select * from final

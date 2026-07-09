@@ -24,9 +24,10 @@ final as (
     l_shipmode as ship_mode,
     l_comment as comment,
     l_load_timestamp as load_timestamp,
-    l_version as version,
+    l_version as li_version,
     'raw_lineitem' as record_source
-  from source_data
+  from 
+    source_data
 )
 
 select * from final

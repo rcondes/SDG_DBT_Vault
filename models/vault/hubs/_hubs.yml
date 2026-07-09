@@ -1,62 +1,102 @@
-version: 2
+version: 1
 
 models:
   - name: hub_customer
-    description: "Hub de clientes. Contiene solo el ID de negocio del cliente."
+    config:
+      tags: ['hub']
+    description: "Hub de clientes: una fila por business key"
     columns:
-      - name: customer_hk
-        description: "Hash único MD5 (Business Key) del cliente."
-        data_tests: [not_null, unique]
-      - name: customer_id
-        description: "Clave de negocio original del cliente."
-        data_tests: [not_null]
+      - name: hub_key
+        description: "Hash de la business key (md5 lower)"
+        tests:
+          - not_null
+          - unique
+      - name: business_key
+        description: "Clave de negocio original (c_custkey)"
+        tests:
+          - not_null
+          - unique
+      - name: first_seen_dttm
+        description: "Fecha/hora en que se detectó por primera vez la business key"
+      - name: record_source
+        description: "Origen del registro"
 
   - name: hub_orders
-    description: "Hub de pedidos. Contiene solo el ID de negocio del pedido."
+    config:
+      tags: ['hub']
+    description: "Hub de pedidos: una fila por business key"
     columns:
-      - name: order_hk
-        description: "Hash único MD5 (Business Key) del pedido."
-        data_tests: [not_null, unique]
-      - name: order_id
-        description: "Clave de negocio original del pedido."
-        data_tests: [not_null]
+      - name: hub_key
+        tests:
+          - not_null
+          - unique
+      - name: business_key
+        tests:
+          - not_null
+          - unique
+      - name: first_seen_dttm
+      - name: record_source
 
   - name: hub_part
-    description: "Hub de piezas. Contiene solo el ID de negocio de la pieza."
+    config:
+      tags: ['hub']
+    description: "Hub de partes: una fila por business key"
     columns:
-      - name: part_hk
-        description: "Hash único MD5 (Business Key) de la pieza."
-        data_tests: [not_null, unique]
-      - name: part_id
-        description: "Clave de negocio original de la pieza."
-        data_tests: [not_null]
+      - name: hub_key
+        tests:
+          - not_null
+          - unique
+      - name: business_key
+        tests:
+          - not_null
+          - unique
+      - name: first_seen_dttm
+      - name: record_source
 
   - name: hub_supplier
-    description: "Hub de proveedores. Contiene solo el ID de negocio del proveedor."
+    config:
+      tags: ['hub']
+    description: "Hub de proveedores: una fila por business key"
     columns:
-      - name: supplier_hk
-        description: "Hash único MD5 (Business Key) del proveedor."
-        data_tests: [not_null, unique]
-      - name: supplier_id
-        description: "Clave de negocio original del proveedor."
-        data_tests: [not_null]
+      - name: hub_key
+        tests:
+          - not_null
+          - unique
+      - name: business_key
+        tests:
+          - not_null
+          - unique
+      - name: first_seen_dttm
+      - name: record_source
 
   - name: hub_nation
-    description: "Hub de naciones. Contiene solo el ID de negocio de la nación."
+    config:
+      tags: ['hub']
+    description: "Hub de nation: referencia geográfica"
     columns:
-      - name: nation_hk
-        description: "Hash único MD5 (Business Key) de la nación."
-        data_tests: [not_null, unique]
-      - name: nation_id
-        description: "Clave de negocio original de la nación."
-        data_tests: [not_null]
+      - name: hub_key
+        tests:
+          - not_null
+          - unique
+      - name: business_key
+        tests:
+          - not_null
+          - unique
+      - name: first_seen_dttm
+      - name: record_source
 
   - name: hub_region
-    description: "Hub de regiones. Contiene solo el ID de negocio de la región."
+    config:
+      tags: ['hub']
+    description: "Hub de region: referencia geográfica"
     columns:
-      - name: region_hk
-        description: "Hash único MD5 (Business Key) de la región."
-        data_tests: [not_null, unique]
-      - name: region_id
-        description: "Clave de negocio original de la región."
-        data_tests: [not_null]
+      - name: hub_key
+        tests:
+          - not_null
+          - unique
+      - name: business_key
+        tests:
+          - not_null
+          - unique
+      - name: first_seen_dttm
+      - name: record_source
