@@ -1,0 +1,76 @@
+{{ config(materialized='table', tags=['mart']) }}
+
+with orders_h as (
+  select
+    ho.hub_orders_key,
+    ho.order_id
+  from {{ ref('hub_orders') }} ho
+),
+
+orders_sat as (
+  select
+    s.parent_hub_key as hub_orders_key,
+    s.order_status,
+    s.order_date,
+    s.total_amount,
+    s.load_dttm as order_load_dttm,
+    s.record_source as order_record_source
+  from {{ ref('sat_orders') }} s
+),
+
+link_op as (
+  select
+    l.link_order_part_key,
+    l.hub_orders_key,
+    l.hub_part_key,
+    l.line_number,
+    l.quantity,
+    l.unit_price,
+    l.load_dttm as link_load_dttm,
+    l.record_source as link_record_source
+  from {{ ref('link_order_part') }} l
+),
+
+parts_h as (
+  select
+    hp.hub_part_key,
+    hp.part_id
+  from {{ ref('hub_part') }} hp
+),
+
+parts_sat as (
+  select
+    sp.parent_hub_key as hub_part_key,
+    sp.part_name,
+    sp.part_description,
+    sp.load_dttm as part_load_dttm,
+    sp.record_source as part_record_source
+  from {{ ref('sat_part') }} sp
+)
+
+select
+  l.link_order_part_key as order_line_key,
+  o.order_id,
+  p.part_id,
+  l.line_number,
+  l.quantity,
+  l.unit_price,
+  (l.quantity * l.unit_price) as line_total,
+  os.order_status,
+  os.order_date,
+  p.part_name,
+  p.part_description,
+  greatest(coalesce(l.link_load_dttm, timestamp '1970-01-01'),
+           coalesce(os.order_load_dttm, timestamp '1970-01-01'),
+           coalesce(p.part_load_dttm, timestamp '1970-01-01')) as last_load_dttm,
+  -- prefer order-level record_source, fallback to link or part
+  coalesce(os.order_record_source, l.link_record_source, p.part_record_source) as record_source
+from link_op l
+left join orders_h o
+  on l.hub_orders_key = o.hub_orders_key
+left join orders_sat os
+  on o.hub_orders_key = os.hub_orders_key
+left join parts_h p_h
+  on l.hub_part_key = p_h.hub_part_key
+left join parts_sat p
+  on p_h.hub_part_key = p.hub_part_key

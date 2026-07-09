@@ -1,6 +1,22 @@
-{{ config(materialized='incremental', unique_key='sat_key', tags=['sat']) }}
+{{ config(materialized='incremental', unique_key='sat_customer_key', tags=['sat']) }}
 
-with src as (
+with src_raw as (
+  select
+    customer_id,
+    customer_name,
+    customer_address,
+    customer_nation_id,
+    customer_phone,
+    account_balance,
+    market_segment,
+    customer_comment,
+    load_timestamp,
+    customer_version
+  from {{ ref('stg_customer') }}
+  where customer_id is not null
+),
+
+src as (
   select
     lower(md5(cast(customer_id as varchar))) as parent_hub_key,
     customer_id,
@@ -11,54 +27,189 @@ with src as (
     account_balance,
     market_segment,
     customer_comment,
-    coalesce(load_timestamp, current_timestamp()) as load_dttm,
+    load_timestamp as sat_load_dttm,
     customer_version,
-    record_source,
-    lower(md5(concat_ws('||', customer_name, customer_address, customer_nation_id, customer_phone, account_balance, market_segment, customer_comment))) as attribute_hash
-  from 
-    {{ ref('stg_customer') }}
-  where 
-    customer_id is not null
-),
-
-last as (
-  {%- if is_incremental() %}
-    select parent_hub_key, attribute_hash as last_attribute_hash
-    from (
-      select parent_hub_key, attribute_hash,
-             row_number() over (partition by parent_hub_key order by customer_version desc, load_dttm desc) as rn
-      from {{ this }}
-    ) t
-    where rn = 1
-  {%- else %}
-    -- primera ejecución: no existe tabla objetivo, devolvemos conjunto vacío
-    select null::varchar as parent_hub_key, null::varchar as last_attribute_hash
-    where false
-  {% endif -%}
-),
-
-to_insert as (
-  select
-    lower(md5(concat(s.parent_hub_key, '||', cast(s.customer_version as varchar), '||', s.attribute_hash))) as sat_key,
-    s.parent_hub_key,
-    s.customer_id,
-    s.customer_name,
-    s.customer_address,
-    s.customer_nation_id,
-    s.customer_phone,
-    s.account_balance,
-    s.market_segment,
-    s.customer_comment,
-    s.load_dttm,
-    s.customer_version,
-    s.attribute_hash,
-    s.record_source
-  from src s
-  left join last l
-    on s.parent_hub_key = l.parent_hub_key
-  where
-    l.parent_hub_key is null
-    or s.attribute_hash != l.last_attribute_hash
+    lower(md5(
+      concat_ws('||',
+        coalesce(customer_name,''),
+        coalesce(customer_address,''),
+        coalesce(customer_nation_id::varchar,''),
+        coalesce(customer_phone,''),
+        coalesce(account_balance::varchar,''),
+        coalesce(market_segment,''),
+        coalesce(customer_comment,'')
+      )
+    )) as attribute_hash
+  from (
+    select
+      *,
+      row_number() over (partition by customer_id order by customer_version desc, load_timestamp desc) as rn
+    from src_raw
+  ) t
+  where rn = 1
 )
 
-select * from to_insert
+{%- if is_incremental() %}
+
+  {% set tmp_table = "tmp_dbt_sat_customer_candidates_" ~ run_started_at.strftime('%s') %}
+
+  {# 1) Crear temp table con la definición completa de src y la lógica de candidates #}
+  {% set create_tmp %}
+  create or replace temporary table {{ tmp_table }} as
+
+  with src_raw as (
+    select
+      customer_id,
+      customer_name,
+      customer_address,
+      customer_nation_id,
+      customer_phone,
+      account_balance,
+      market_segment,
+      customer_comment,
+      load_timestamp,
+      customer_version
+    from {{ ref('stg_customer') }}
+    where customer_id is not null
+  ),
+
+  src as (
+    select
+      lower(md5(cast(customer_id as varchar))) as parent_hub_key,
+      customer_id,
+      customer_name,
+      customer_address,
+      customer_nation_id,
+      customer_phone,
+      account_balance,
+      market_segment,
+      customer_comment,
+      load_timestamp as sat_load_dttm,
+      customer_version,
+      lower(md5(
+        concat_ws('||',
+          coalesce(customer_name,''),
+          coalesce(customer_address,''),
+          coalesce(customer_nation_id::varchar,''),
+          coalesce(customer_phone,''),
+          coalesce(account_balance::varchar,''),
+          coalesce(market_segment,''),
+          coalesce(customer_comment,'')
+        )
+      )) as attribute_hash
+    from (
+      select
+        *,
+        row_number() over (partition by customer_id order by customer_version desc, load_timestamp desc) as rn
+      from src_raw
+    ) t
+    where rn = 1
+  )
+
+  select
+    s.*
+  from src s
+  left join {{ this }} t
+    on t.parent_hub_key = s.parent_hub_key
+    and t.effective_to = '9999-12-31'::timestamp
+  where t.parent_hub_key is null
+     or t.attribute_hash <> s.attribute_hash
+  {% endset %}
+
+  {% do run_query(create_tmp) %}
+
+  {# 2) End-date la fila abierta previa (si existe) #}
+  {% set update_open %}
+  update {{ this }} target
+  set effective_to = dateadd(second, -1, src.sat_load_dttm)
+  from {{ tmp_table }} src
+  where target.parent_hub_key = src.parent_hub_key
+    and target.effective_to = '9999-12-31'::timestamp
+  {% endset %}
+
+  {% do run_query(update_open) %}
+
+  {# 3) Insertar nuevas versiones #}
+  {% set insert_new %}
+  insert into {{ this }} (
+    sat_customer_key,
+    parent_hub_key,
+    customer_id,
+    customer_name,
+    customer_address,
+    customer_nation_id,
+    customer_phone,
+    account_balance,
+    market_segment,
+    customer_comment,
+    attribute_hash,
+    effective_from,
+    effective_to,
+    load_dttm,
+    customer_version
+  )
+  select
+    uuid_string() as sat_customer_key,
+    parent_hub_key,
+    customer_id,
+    customer_name,
+    customer_address,
+    customer_nation_id,
+    customer_phone,
+    account_balance,
+    market_segment,
+    customer_comment,
+    attribute_hash,
+    sat_load_dttm as effective_from,
+    '9999-12-31'::timestamp as effective_to,
+    sat_load_dttm as load_dttm,
+    customer_version
+  from {{ tmp_table }}
+  {% endset %}
+
+  {% do run_query(insert_new) %}
+
+  {# 4) Limpiar temp table #}
+  {% do run_query("drop table if exists " ~ tmp_table) %}
+
+  {# 5) Devolver filas para que dbt materialice la tabla #}
+  select
+    sat_customer_key,
+    parent_hub_key,
+    customer_id,
+    customer_name,
+    customer_address,
+    customer_nation_id,
+    customer_phone,
+    account_balance,
+    market_segment,
+    customer_comment,
+    attribute_hash,
+    effective_from,
+    effective_to,
+    load_dttm,
+    customer_version
+  from {{ this }}
+
+{%- else %}
+
+  {# Full-refresh: crear la tabla con la versión más reciente por business key #}
+  select
+    uuid_string() as sat_customer_key,
+    parent_hub_key,
+    customer_id,
+    customer_name,
+    customer_address,
+    customer_nation_id,
+    customer_phone,
+    account_balance,
+    market_segment,
+    customer_comment,
+    attribute_hash,
+    sat_load_dttm as effective_from,
+    '9999-12-31'::timestamp as effective_to,
+    sat_load_dttm as load_dttm,
+    customer_version
+  from src
+
+{%- endif %}

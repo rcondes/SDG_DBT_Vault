@@ -1,6 +1,22 @@
-{{ config(materialized='incremental', unique_key='sat_key', tags=['sat']) }}
+-- models/vault/sat/sat_supplier.sql
+{{ config(materialized='incremental', unique_key='sat_supplier_key', tags=['sat']) }}
 
-with src as (
+with src_raw as (
+  select
+    supplier_id,
+    supplier_name,
+    supplier_address,
+    nation_id,
+    supplier_phone,
+    account_balance,
+    supplier_comment,
+    load_timestamp,
+    supplier_version
+  from {{ ref('stg_supplier') }}
+  where supplier_id is not null
+),
+
+src as (
   select
     lower(md5(cast(supplier_id as varchar))) as parent_hub_key,
     supplier_id,
@@ -8,53 +24,139 @@ with src as (
     supplier_address,
     nation_id,
     supplier_phone,
+    account_balance,
     supplier_comment,
-    load_timestamp as load_dttm,
+    load_timestamp as sat_load_dttm,
     supplier_version,
-    record_source,
-    lower(md5(concat_ws('||', supplier_name, supplier_address, nation_id, supplier_phone, supplier_comment))) as attribute_hash
-  from 
-    {{ ref('stg_supplier') }}
-  where 
-    supplier_id is not null
-),
-
-last as (
-  {%- if is_incremental() %}
-    select parent_hub_key, attribute_hash as last_attribute_hash
-    from (
-      select parent_hub_key, attribute_hash,
-             row_number() over (partition by parent_hub_key order by supplier_version desc, load_dttm desc) as rn
-      from {{ this }}
-    ) t
-    where rn = 1
-  {%- else %}
-    -- primera ejecución: no existe tabla objetivo, devolvemos conjunto vacío
-    select null::varchar as parent_hub_key, null::varchar as last_attribute_hash
-    where false
-  {% endif -%}
-),
-
-to_insert as (
-  select
-    lower(md5(concat(s.parent_hub_key, '||', cast(s.supplier_version as varchar), '||', s.attribute_hash))) as sat_key,
-    s.parent_hub_key,
-    s.supplier_id,
-    s.supplier_name,
-    s.supplier_address,
-    s.nation_id,
-    s.supplier_phone,
-    s.supplier_comment,
-    s.load_dttm,
-    s.supplier_version,
-    s.attribute_hash,
-    s.record_source
-  from src s
-  left join last l
-    on s.parent_hub_key = l.parent_hub_key
-  where
-    l.parent_hub_key is null
-    or s.attribute_hash != l.last_attribute_hash
+    lower(md5(concat_ws('||',
+      coalesce(supplier_name,''),
+      coalesce(supplier_address,''),
+      coalesce(nation_id::varchar,''),
+      coalesce(supplier_phone,''),
+      coalesce(account_balance::varchar,''),
+      coalesce(supplier_comment,'')
+    ))) as attribute_hash
+  from (
+    select
+      *,
+      row_number() over (
+        partition by supplier_id
+        order by supplier_version desc, load_timestamp desc
+      ) as rn
+    from src_raw
+  ) t
+  where rn = 1
 )
 
-select * from to_insert
+{%- if is_incremental() %}
+
+  {% set tmp_table = "tmp_dbt_sat_supplier_candidates_" ~ run_started_at.strftime('%s') %}
+
+  {% set create_tmp %}
+  create or replace temporary table {{ tmp_table }} as
+
+  with src_raw as (
+    select
+      supplier_id,
+      supplier_name,
+      supplier_address,
+      nation_id,
+      supplier_phone,
+      account_balance,
+      supplier_comment,
+      load_timestamp,
+      supplier_version
+    from {{ ref('stg_supplier') }}
+    where supplier_id is not null
+  ),
+
+  src as (
+    select
+      lower(md5(cast(supplier_id as varchar))) as parent_hub_key,
+      supplier_id,
+      supplier_name,
+      supplier_address,
+      nation_id,
+      supplier_phone,
+      account_balance,
+      supplier_comment,
+      load_timestamp as sat_load_dttm,
+      supplier_version,
+      lower(md5(concat_ws('||',
+        coalesce(supplier_name,''),
+        coalesce(supplier_address,''),
+        coalesce(nation_id::varchar,''),
+        coalesce(supplier_phone,''),
+        coalesce(account_balance::varchar,''),
+        coalesce(supplier_comment,'')
+      ))) as attribute_hash
+    from (
+      select
+        *,
+        row_number() over (
+          partition by supplier_id
+          order by supplier_version desc, load_timestamp desc
+        ) as rn
+      from src_raw
+    ) t
+    where rn = 1
+  )
+
+  select s.*
+  from src s
+  left join {{ this }} t
+    on t.parent_hub_key = s.parent_hub_key
+    and t.effective_to = '9999-12-31'::timestamp
+  where t.parent_hub_key is null
+     or t.attribute_hash <> s.attribute_hash
+  {% endset %}
+
+  {% do run_query(create_tmp) %}
+
+  {% do run_query(
+    "update " ~ this ~ " target set effective_to = dateadd(second, -1, src.sat_load_dttm) from " ~ tmp_table ~ " src where target.parent_hub_key = src.parent_hub_key and target.effective_to = '9999-12-31'::timestamp"
+  ) %}
+
+  {% do run_query(
+    "insert into " ~ this ~ " (sat_supplier_key,parent_hub_key,supplier_id,supplier_name,supplier_address,nation_id,supplier_phone,account_balance,supplier_comment,attribute_hash,effective_from,effective_to,load_dttm,supplier_version) select uuid_string(), parent_hub_key,supplier_id,supplier_name,supplier_address,nation_id,supplier_phone,account_balance,supplier_comment,attribute_hash,sat_load_dttm,'9999-12-31'::timestamp,sat_load_dttm,supplier_version from " ~ tmp_table
+  ) %}
+
+  {% do run_query("drop table if exists " ~ tmp_table) %}
+
+  select
+    sat_supplier_key,
+    parent_hub_key,
+    supplier_id,
+    supplier_name,
+    supplier_address,
+    nation_id,
+    supplier_phone,
+    account_balance,
+    supplier_comment,
+    attribute_hash,
+    effective_from,
+    effective_to,
+    load_dttm,
+    supplier_version
+  from {{ this }}
+
+{%- else %}
+
+  select
+    uuid_string() as sat_supplier_key,
+    parent_hub_key,
+    supplier_id,
+    supplier_name,
+    supplier_address,
+    nation_id,
+    supplier_phone,
+    account_balance,
+    supplier_comment,
+    attribute_hash,
+    sat_load_dttm as effective_from,
+    '9999-12-31'::timestamp as effective_to,
+    sat_load_dttm as load_dttm,
+    supplier_version
+  from src
+
+{%- endif %}
