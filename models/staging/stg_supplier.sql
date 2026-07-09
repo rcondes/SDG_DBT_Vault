@@ -1,17 +1,23 @@
+-- stg_supplier.sql
 {{ config(materialized='view') }}
-with source_data as (select * from {{ source('raw_source', 'raw_supplier') }}),
+
+with source_data as (
+  select * from {{ source('raw_source', 'raw_supplier') }}
+),
+
 final as (
-    select
-        lower(md5(cast(trim(s_suppkey) as varchar(100)))) as supplier_hk,
-        s_suppkey as supplier_id,
-        s_name as name,
-        s_address as address,
-        s_nationkey as nation_id,
-        s_phone as phone,
-        s_acctbal as account_balance,
-        s_comment as comment,
-        current_timestamp() as load_date,
-        'RAW_SUPPLIER' as record_source
-    from source_data
+  select
+    s_suppkey as supplier_id,
+    s_name as supplier_name,
+    s_address as address,
+    s_nationkey as nation_id,
+    s_phone as phone,
+    s_acctbal as account_balance,
+    s_comment as comment,
+    s_load_timestamp as load_timestamp,
+    s_version as version,
+    'raw_supplier' as record_source
+  from source_data
 )
+
 select * from final

@@ -1,17 +1,212 @@
-version: 2
+version: 1
 
 sources:
   - name: raw_source
     database: SDG_DB
     schema: RAW
-    description: "Capa de ingesta con los datos crudos de los 8 CSVs."
+    description: "Capa de ingesta de los CSVs"
 
     tables:
       - name: raw_customer
+        description: "CSV customer tal cual (puede contener varias versiones por business key)"
+        columns:
+          - name: c_custkey
+            description: "Clave de cliente (business key)"
+            tests:
+              - not_null
+          - name: c_name
+            description: "Nombre del cliente"
+            tests:
+              - not_null
+          - name: c_address
+            description: "Dirección del cliente"
+          - name: c_nationkey
+            description: "FK a nation"
+          - name: c_phone
+            description: "Teléfono"
+          - name: c_acctbal
+            description: "Saldo de cuenta"
+          - name: c_mktsegment
+            description: "Segmento de mercado"
+          - name: c_comment
+            description: "Comentario libre"
+          - name: c_load_timestamp
+            description: "Timestamp de carga (auditoría)"
+          - name: c_version
+            description: "Periodo/version (ej. 202512)"
+        tests:
+          - unique_customer_key_version
+
       - name: raw_orders
+        description: "CSV orders tal cual (puede contener varias versiones por business key)"
+        columns:
+          - name: o_orderkey
+            description: "Clave de pedido"
+            tests:
+              - not_null
+          - name: o_custkey
+            description: "FK a cliente"
+            tests:
+              - not_null
+          - name: o_orderstatus
+            description: "Estado del pedido"
+          - name: o_totalprice
+            description: "Importe total"
+          - name: o_orderdate
+            description: "Fecha de pedido"
+          - name: o_load_timestamp
+            description: "Timestamp de carga"
+          - name: o_version
+            description: "Periodo/version"
+        tests:
+          - unique_orders_key_version
+
       - name: raw_lineitem
+        description: "CSV lineitem tal cual (puede contener varias versiones por business key + line_number)"
+        columns:
+          - name: l_orderkey
+            description: "FK a orders"
+            tests:
+              - not_null
+          - name: l_linenumber
+            description: "Número de línea"
+            tests:
+              - not_null
+          - name: l_partkey
+            description: "FK a part"
+          - name: l_suppkey
+            description: "FK a supplier"
+          - name: l_quantity
+            description: "Cantidad"
+          - name: l_extendedprice
+            description: "Precio extendido"
+          - name: l_load_timestamp
+            description: "Timestamp de carga"
+          - name: l_version
+            description: "Periodo/version"
+        tests:
+          - unique_lineitem_key_version
+
       - name: raw_part
+        description: "CSV part tal cual (puede contener varias versiones por business key)"
+        columns:
+          - name: p_partkey
+            description: "Clave de parte"
+            tests:
+              - not_null
+          - name: p_name
+            description: "Nombre de la parte"
+            tests:
+              - not_null
+          - name: p_mfgr
+            description: "Fabricante"
+          - name: p_brand
+            description: "Marca"
+          - name: p_type
+            description: "Tipo"
+          - name: p_size
+            description: "Tamaño"
+          - name: p_retailprice
+            description: "Precio de venta"
+          - name: p_comment
+            description: "Comentario"
+          - name: p_load_timestamp
+            description: "Timestamp de carga"
+          - name: p_version
+            description: "Periodo/version"
+        tests:
+          - unique_part_key_version
+
       - name: raw_supplier
+        description: "CSV supplier tal cual (puede contener varias versiones por business key)"
+        columns:
+          - name: s_suppkey
+            description: "Clave de proveedor"
+            tests:
+              - not_null
+          - name: s_name
+            description: "Nombre proveedor"
+            tests:
+              - not_null
+          - name: s_address
+            description: "Dirección proveedor"
+          - name: s_nationkey
+            description: "FK a nation"
+          - name: s_phone
+            description: "Teléfono"
+          - name: s_acctbal
+            description: "Saldo cuenta proveedor"
+          - name: s_comment
+            description: "Comentario"
+          - name: s_load_timestamp
+            description: "Timestamp de carga"
+          - name: s_version
+            description: "Periodo/version"
+        tests:
+          - unique_supplier_key_version
+
       - name: raw_partsupp
+        description: "CSV partsupp tal cual (puede contener varias versiones por combinación partkey+suppkey)"
+        columns:
+          - name: ps_partkey
+            description: "FK a part"
+            tests:
+              - not_null
+          - name: ps_suppkey
+            description: "FK a supplier"
+            tests:
+              - not_null
+          - name: ps_availqty
+            description: "Cantidad disponible"
+          - name: ps_supplycost
+            description: "Coste de suministro"
+          - name: ps_comment
+            description: "Comentario"
+          - name: ps_load_timestamp
+            description: "Timestamp de carga"
+          - name: ps_version
+            description: "Periodo/version"
+        tests:
+          - unique_partsupp_key_version
+
       - name: raw_nation
+        description: "CSV nation tal cual (puede contener varias versiones por business key)"
+        columns:
+          - name: n_nationkey
+            description: "Clave de nation"
+            tests:
+              - not_null
+          - name: n_name
+            description: "Nombre de la nación"
+            tests:
+              - not_null
+          - name: n_regionkey
+            description: "FK a region"
+          - name: n_comment
+            description: "Comentario"
+          - name: n_load_timestamp
+            description: "Timestamp de carga"
+          - name: n_version
+            description: "Periodo/version"
+        tests:
+          - unique_nation_key_version
+
       - name: raw_region
+        description: "CSV region tal cual (puede contener varias versiones por business key)"
+        columns:
+          - name: r_regionkey
+            description: "Clave de region"
+            tests:
+              - not_null
+          - name: r_name
+            description: "Nombre de la región"
+            tests:
+              - not_null
+          - name: r_comment
+            description: "Comentario"
+          - name: r_load_timestamp
+            description: "Timestamp de carga"
+          - name: r_version
+            description: "Periodo/version"
+        tests:
+          - unique_region_key_version

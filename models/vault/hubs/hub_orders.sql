@@ -11,7 +11,7 @@ final as (
         load_date, 
         record_source
     from (
-        select *, row_number() over (partition by order_hk order by load_date asc) as rn
+        select *, row_number() over (partition by order_hk order by load_date desc) as rn
         from staging_data
         where order_hk is not null
     )
